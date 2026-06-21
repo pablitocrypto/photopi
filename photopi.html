@@ -22,13 +22,12 @@
 
 <script src="https://cdn.jsdelivr.net/npm/photopea@1.0.2/dist/photopea.min.js"></script>
 <script>
-const LAYER_NAME = "CARDTEXT";
-const FONT_URL   = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/BurnedPancakes-RegularRough.otf";
-const PSD_URL    = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
-const CARD_TEXT  = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
+const FONT_URL = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/BurnedPancakes-RegularRough.otf";
+const PSD_URL  = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
+const CARD_TEXT = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
 const log = m => document.getElementById('status').textContent = " " + m;
 
-// галочка: восстановить и запоминать выбор
+// галочка автозакрытия: восстановить и запоминать выбор
 const cb = document.getElementById('autoclose');
 cb.checked = localStorage.getItem('autoclose') === '1';
 cb.addEventListener('change', () => localStorage.setItem('autoclose', cb.checked ? '1' : '0'));
@@ -40,27 +39,33 @@ async function run(psdBuf){
   log("гружу шрифт...");       await pea.loadAsset(await (await fetch(FONT_URL)).arrayBuffer());
   log("вставляю текст...");
   const script = `
-    function find(ls, n){
+    // ищем ЕДИНСТВЕННЫЙ текстовый слой (рекурсивно, имя не важно)
+    function findText(ls){
       for (var i=0;i<ls.length;i++){
-        if (ls[i].name === n) return ls[i];
-        if (ls[i].layers){ var r = find(ls[i].layers, n); if (r) return r; }
+        var L = ls[i];
+        if (L.kind === LayerKind.TEXT) return L;
+        if (L.layers){ var r = findText(L.layers); if (r) return r; }
       }
       return null;
     }
-    var L = find(app.activeDocument.layers, ${JSON.stringify(LAYER_NAME)});
-    var f = L.textItem.font;
-    L.textItem.contents = ${JSON.stringify(CARD_TEXT)};
-    L.textItem.font = f;
-    app.activeDocument.saveToOE("png");
+    var L = findText(app.activeDocument.layers);
+    if (L){
+      L.textItem.contents = ${JSON.stringify(CARD_TEXT)};
+      L.textItem.font = "BurnedPancakes-RegularRough";   // прибиваем наш шрифт
+      app.activeDocument.saveToOE("png");
+    } else {
+      app.echoToOE("NOTEXTLAYER");
+    }
   `;
   const out = await pea.runScript(script);
+  if (out.find(x => x === "NOTEXTLAYER")){ log("ошибка: текстовый слой не найден"); return; }
   const png = out.find(x => x instanceof ArrayBuffer);
   if (png){
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([png], {type:"image/png"}));
     a.download = "card.png"; a.click();
     log("готово ✓ card.png");
-    if (cb.checked) setTimeout(() => window.close(), 2000);   // закрыть, если галочка стоит
+    if (cb.checked) setTimeout(() => window.close(), 2000);
   } else {
     log("ошибка: картинка не получена");
   }
