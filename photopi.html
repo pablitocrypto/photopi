@@ -37,8 +37,7 @@ async function run(psdBuf){
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([png], {type:"image/png"}));
     a.download = "card.png"; a.click();
-    log("готово ✓ card.png — закрываю вкладку...");
-    setTimeout(() => window.close(), 2000);   // закрыть вкладку через 2 сек
+    log("готово ✓ card.png");
   } else {
     log("ошибка: картинка не получена");
   }
