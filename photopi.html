@@ -3,22 +3,21 @@
 <style>
   body{font-family:sans-serif;margin:0}
   #pick{
-    display:inline-block;
-    font-size:32px;
-    padding:24px 48px;
-    margin:30px;
-    background:#1a1a1a;color:#D4A017;
-    border:2px solid #D4A017;border-radius:14px;
-    cursor:pointer;
+    display:inline-block;font-size:32px;padding:24px 48px;margin:30px;
+    background:#1a1a1a;color:#D4A017;border:2px solid #D4A017;border-radius:14px;cursor:pointer;
   }
   #pick:hover{background:#2a2a2a}
-  #psd{display:none}        /* прячем стандартный input */
-  #status{font-size:20px;margin-left:30px}
+  #psd{display:none}
+  #bar{margin:0 30px 10px;font-size:20px}
+  #status{margin-left:12px}
 </style>
 
 <label id="pick" for="psd">📂 Выбрать PSD-шаблон</label>
 <input type="file" id="psd" accept=".psd">
-<span id="status"></span>
+<div id="bar">
+  <label><input type="checkbox" id="autoclose"> закрывать вкладку после сохранения</label>
+  <span id="status"></span>
+</div>
 <div id="pea" style="width:100vw;height:80vh"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/photopea@1.0.2/dist/photopea.min.js"></script>
@@ -26,9 +25,14 @@
 const LAYER_NAME = "CARDTEXT";
 const FONT_URL   = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/BurnedPancakes-RegularRough.otf";
 const PSD_URL    = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
-// текст берём из ?text=... ; переносы строк -> \r для Photopea
-const CARD_TEXT = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
+const CARD_TEXT  = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
 const log = m => document.getElementById('status').textContent = " " + m;
+
+// галочка: восстановить и запоминать выбор
+const cb = document.getElementById('autoclose');
+cb.checked = localStorage.getItem('autoclose') === '1';
+cb.addEventListener('change', () => localStorage.setItem('autoclose', cb.checked ? '1' : '0'));
+
 async function run(psdBuf){
   log("открываю Photopea...");
   const pea = await Photopea.createEmbed(document.getElementById('pea'));
@@ -56,15 +60,16 @@ async function run(psdBuf){
     a.href = URL.createObjectURL(new Blob([png], {type:"image/png"}));
     a.download = "card.png"; a.click();
     log("готово ✓ card.png");
+    if (cb.checked) setTimeout(() => window.close(), 2000);   // закрыть, если галочка стоит
   } else {
     log("ошибка: картинка не получена");
   }
 }
 if (PSD_URL){
-  fetch(PSD_URL).then(r => r.arrayBuffer()).then(run);          // авто: PSD по ссылке
+  fetch(PSD_URL).then(r => r.arrayBuffer()).then(run);
 } else {
   document.getElementById('psd').addEventListener('change', async e => {
-    if (e.target.files[0]) run(await e.target.files[0].arrayBuffer());  // вручную выбрать PSD
+    if (e.target.files[0]) run(await e.target.files[0].arrayBuffer());
   });
 }
 </script>
