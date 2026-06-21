@@ -1,12 +1,31 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
+<style>
+  body{font-family:sans-serif;margin:0}
+  #pick{
+    display:inline-block;
+    font-size:32px;
+    padding:24px 48px;
+    margin:30px;
+    background:#1a1a1a;color:#D4A017;
+    border:2px solid #D4A017;border-radius:14px;
+    cursor:pointer;
+  }
+  #pick:hover{background:#2a2a2a}
+  #psd{display:none}        /* прячем стандартный input */
+  #status{font-size:20px;margin-left:30px}
+</style>
+
+<label id="pick" for="psd">📂 Выбрать PSD-шаблон</label>
 <input type="file" id="psd" accept=".psd">
 <span id="status"></span>
-<div id="pea" style="width:100vw;height:90vh"></div>
+<div id="pea" style="width:100vw;height:80vh"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/photopea@1.0.2/dist/photopea.min.js"></script>
 <script>
-const FONT_URL = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/BurnedPancakes-RegularRough.otf";
-const PSD_URL  = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
+const LAYER_NAME = "CARDTEXT";
+const FONT_URL   = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/BurnedPancakes-RegularRough.otf";
+const PSD_URL    = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
 // текст берём из ?text=... ; переносы строк -> \r для Photopea
 const CARD_TEXT = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
 const log = m => document.getElementById('status').textContent = " " + m;
@@ -17,27 +36,20 @@ async function run(psdBuf){
   log("гружу шрифт...");       await pea.loadAsset(await (await fetch(FONT_URL)).arrayBuffer());
   log("вставляю текст...");
   const script = `
-    // ищем ЕДИНСТВЕННЫЙ текстовый слой (рекурсивно, в т.ч. внутри групп)
-    function findText(ls){
+    function find(ls, n){
       for (var i=0;i<ls.length;i++){
-        var L = ls[i];
-        if (L.kind === LayerKind.TEXT) return L;
-        if (L.layers){ var r = findText(L.layers); if (r) return r; }
+        if (ls[i].name === n) return ls[i];
+        if (ls[i].layers){ var r = find(ls[i].layers, n); if (r) return r; }
       }
       return null;
     }
-    var L = findText(app.activeDocument.layers);
-    if (L){
-      L.textItem.contents = ${JSON.stringify(CARD_TEXT)};
-      // принудительно ставим загруженный шрифт по его внутреннему имени
-      L.textItem.font = "BurnedPancakes-RegularRough";
-      app.activeDocument.saveToOE("png");
-    } else {
-      app.echoToOE("NOTEXTLAYER");
-    }
+    var L = find(app.activeDocument.layers, ${JSON.stringify(LAYER_NAME)});
+    var f = L.textItem.font;
+    L.textItem.contents = ${JSON.stringify(CARD_TEXT)};
+    L.textItem.font = f;
+    app.activeDocument.saveToOE("png");
   `;
   const out = await pea.runScript(script);
-  if (out.find(x => x === "NOTEXTLAYER")){ log("ошибка: текстовый слой не найден"); return; }
   const png = out.find(x => x instanceof ArrayBuffer);
   if (png){
     const a = document.createElement('a');
@@ -49,10 +61,10 @@ async function run(psdBuf){
   }
 }
 if (PSD_URL){
-  fetch(PSD_URL).then(r => r.arrayBuffer()).then(run);
+  fetch(PSD_URL).then(r => r.arrayBuffer()).then(run);          // авто: PSD по ссылке
 } else {
   document.getElementById('psd').addEventListener('change', async e => {
-    if (e.target.files[0]) run(await e.target.files[0].arrayBuffer());
+    if (e.target.files[0]) run(await e.target.files[0].arrayBuffer());  // вручную выбрать PSD
   });
 }
 </script>
