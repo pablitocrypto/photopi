@@ -5,9 +5,8 @@
 <div id="pea" style="width:100vw;height:90vh"></div>
 <script src="https://cdn.jsdelivr.net/npm/photopea@1.0.2/dist/photopea.min.js"></script>
 <script>
-const LAYER_NAME = "CARDTEXT";
-const FONT_URL   = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/BurnedPancakes-RegularRough.otf";
-const PSD_URL    = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
+const FONT_URL = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/BurnedPancakes-RegularRough.otf";
+const PSD_URL  = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
 // текст берём из ?text=... ; переносы строк -> \r для Photopea
 const CARD_TEXT = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
 const log = m => document.getElementById('status').textContent = " " + m;
@@ -18,20 +17,27 @@ async function run(psdBuf){
   log("гружу шрифт...");       await pea.loadAsset(await (await fetch(FONT_URL)).arrayBuffer());
   log("вставляю текст...");
   const script = `
-    function find(ls, n){
+    // ищем ЕДИНСТВЕННЫЙ текстовый слой (рекурсивно, в т.ч. внутри групп)
+    function findText(ls){
       for (var i=0;i<ls.length;i++){
-        if (ls[i].name === n) return ls[i];
-        if (ls[i].layers){ var r = find(ls[i].layers, n); if (r) return r; }
+        var L = ls[i];
+        if (L.kind === LayerKind.TEXT) return L;
+        if (L.layers){ var r = findText(L.layers); if (r) return r; }
       }
       return null;
     }
-    var L = find(app.activeDocument.layers, ${JSON.stringify(LAYER_NAME)});
-    var f = L.textItem.font;
-    L.textItem.contents = ${JSON.stringify(CARD_TEXT)};
-    L.textItem.font = f;
-    app.activeDocument.saveToOE("png");
+    var L = findText(app.activeDocument.layers);
+    if (L){
+      L.textItem.contents = ${JSON.stringify(CARD_TEXT)};
+      // принудительно ставим загруженный шрифт по его внутреннему имени
+      L.textItem.font = "BurnedPancakes-RegularRough";
+      app.activeDocument.saveToOE("png");
+    } else {
+      app.echoToOE("NOTEXTLAYER");
+    }
   `;
   const out = await pea.runScript(script);
+  if (out.find(x => x === "NOTEXTLAYER")){ log("ошибка: текстовый слой не найден"); return; }
   const png = out.find(x => x instanceof ArrayBuffer);
   if (png){
     const a = document.createElement('a');
@@ -43,10 +49,10 @@ async function run(psdBuf){
   }
 }
 if (PSD_URL){
-  fetch(PSD_URL).then(r => r.arrayBuffer()).then(run);          // авто: PSD по ссылке
+  fetch(PSD_URL).then(r => r.arrayBuffer()).then(run);
 } else {
   document.getElementById('psd').addEventListener('change', async e => {
-    if (e.target.files[0]) run(await e.target.files[0].arrayBuffer());  // вручную выбрать PSD
+    if (e.target.files[0]) run(await e.target.files[0].arrayBuffer());
   });
 }
 </script>
