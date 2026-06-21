@@ -2,23 +2,31 @@
 <meta charset="utf-8">
 <style>
   body{font-family:sans-serif;margin:0}
+  /* стартовый экран — крупная кнопка по центру */
+  #start{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-height:100vh;
+  }
   #pick{
-    display:inline-block;font-size:32px;padding:24px 48px;margin:30px;
+    font-size:32px;padding:24px 48px;
     background:#1a1a1a;color:#D4A017;border:2px solid #D4A017;border-radius:14px;cursor:pointer;
   }
   #pick:hover{background:#2a2a2a}
   #psd{display:none}
-  #bar{margin:0 30px 10px;font-size:20px}
+  #bar{margin-top:20px;font-size:18px}
   #status{margin-left:12px}
+  #pea{width:100vw;height:100vh;display:none}   /* Photopea во весь экран, появится после выбора */
 </style>
 
-<label id="pick" for="psd">📂 Выбрать PSD-шаблон</label>
-<input type="file" id="psd" accept=".psd">
-<div id="bar">
-  <label><input type="checkbox" id="autoclose"> закрывать вкладку после сохранения</label>
-  <span id="status"></span>
+<div id="start">
+  <label id="pick" for="psd">📂 Выбрать PSD-шаблон</label>
+  <input type="file" id="psd" accept=".psd">
+  <div id="bar">
+    <label><input type="checkbox" id="autoclose"> закрывать вкладку после сохранения</label>
+    <span id="status"></span>
+  </div>
 </div>
-<div id="pea" style="width:100vw;height:80vh"></div>
+<div id="pea"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/photopea@1.0.2/dist/photopea.min.js"></script>
 <script>
@@ -27,19 +35,19 @@ const PSD_URL  = "";   // пусто = PSD выбираешь вручную; в
 const CARD_TEXT = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
 const log = m => document.getElementById('status').textContent = " " + m;
 
-// галочка автозакрытия: восстановить и запоминать выбор
 const cb = document.getElementById('autoclose');
 cb.checked = localStorage.getItem('autoclose') === '1';
 cb.addEventListener('change', () => localStorage.setItem('autoclose', cb.checked ? '1' : '0'));
 
 async function run(psdBuf){
-  log("открываю Photopea...");
+  // прячем стартовый экран (кнопку), показываем Photopea на весь экран
+  document.getElementById('start').style.display = 'none';
+  document.getElementById('pea').style.display = 'block';
+
   const pea = await Photopea.createEmbed(document.getElementById('pea'));
-  log("открываю PSD...");      await pea.loadAsset(psdBuf);
-  log("гружу шрифт...");       await pea.loadAsset(await (await fetch(FONT_URL)).arrayBuffer());
-  log("вставляю текст...");
+  await pea.loadAsset(psdBuf);
+  await pea.loadAsset(await (await fetch(FONT_URL)).arrayBuffer());
   const script = `
-    // ищем ЕДИНСТВЕННЫЙ текстовый слой (рекурсивно, имя не важно)
     function findText(ls){
       for (var i=0;i<ls.length;i++){
         var L = ls[i];
@@ -51,23 +59,20 @@ async function run(psdBuf){
     var L = findText(app.activeDocument.layers);
     if (L){
       L.textItem.contents = ${JSON.stringify(CARD_TEXT)};
-      L.textItem.font = "BurnedPancakes-RegularRough";   // прибиваем наш шрифт
+      L.textItem.font = "BurnedPancakes-RegularRough";
       app.activeDocument.saveToOE("png");
     } else {
       app.echoToOE("NOTEXTLAYER");
     }
   `;
   const out = await pea.runScript(script);
-  if (out.find(x => x === "NOTEXTLAYER")){ log("ошибка: текстовый слой не найден"); return; }
+  if (out.find(x => x === "NOTEXTLAYER")) return;
   const png = out.find(x => x instanceof ArrayBuffer);
   if (png){
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([png], {type:"image/png"}));
     a.download = "card.png"; a.click();
-    log("готово ✓ card.png");
     if (cb.checked) setTimeout(() => window.close(), 2000);
-  } else {
-    log("ошибка: картинка не получена");
   }
 }
 if (PSD_URL){
