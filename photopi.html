@@ -8,12 +8,9 @@
 const LAYER_NAME = "CARDTEXT";
 const FONT_URL   = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/BurnedPancakes-RegularRough.otf";
 const PSD_URL    = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
-
 // текст берём из ?text=... ; переносы строк -> \r для Photopea
 const CARD_TEXT = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
-
 const log = m => document.getElementById('status').textContent = " " + m;
-
 async function run(psdBuf){
   log("открываю Photopea...");
   const pea = await Photopea.createEmbed(document.getElementById('pea'));
@@ -40,10 +37,12 @@ async function run(psdBuf){
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([png], {type:"image/png"}));
     a.download = "card.png"; a.click();
+    log("готово ✓ card.png — закрываю вкладку...");
+    setTimeout(() => window.close(), 2000);   // закрыть вкладку через 2 сек
+  } else {
+    log("ошибка: картинка не получена");
   }
-  log("готово ✓ card.png");
 }
-
 if (PSD_URL){
   fetch(PSD_URL).then(r => r.arrayBuffer()).then(run);          // авто: PSD по ссылке
 } else {
