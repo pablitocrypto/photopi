@@ -17,7 +17,6 @@
   #status{margin-left:12px}
   #pea{width:100vw;height:100vh;display:none}   /* Photopea во весь экран, появится после выбора */
 </style>
-
 <div id="start">
   <label id="pick" for="psd">📂 Выбрать PSD-шаблон</label>
   <input type="file" id="psd" accept=".psd">
@@ -27,24 +26,20 @@
   </div>
 </div>
 <div id="pea"></div>
-
 <script src="https://cdn.jsdelivr.net/npm/photopea@1.0.2/dist/photopea.min.js"></script>
 <script>
-//const FONT_URL = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/BurnedPancakes-RegularRough.otf";
-const FONT_URL = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/ElowenPp-Regular.otf";
-const PSD_URL  = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
+const FONT_URL  = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/ElowenPp-Regular.otf";
+const FONT_NAME = "ElowenPp-Regular";   // внутреннее имя шрифта для слоя
+const PSD_URL   = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
 const CARD_TEXT = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
 const log = m => document.getElementById('status').textContent = " " + m;
-
 const cb = document.getElementById('autoclose');
 cb.checked = localStorage.getItem('autoclose') === '1';
 cb.addEventListener('change', () => localStorage.setItem('autoclose', cb.checked ? '1' : '0'));
-
 async function run(psdBuf){
   // прячем стартовый экран (кнопку), показываем Photopea на весь экран
   document.getElementById('start').style.display = 'none';
   document.getElementById('pea').style.display = 'block';
-
   const pea = await Photopea.createEmbed(document.getElementById('pea'));
   await pea.loadAsset(psdBuf);
   await pea.loadAsset(await (await fetch(FONT_URL)).arrayBuffer());
@@ -60,7 +55,7 @@ async function run(psdBuf){
     var L = findText(app.activeDocument.layers);
     if (L){
       L.textItem.contents = ${JSON.stringify(CARD_TEXT)};
-      L.textItem.font = "BurnedPancakes-RegularRough";
+      L.textItem.font = ${JSON.stringify(FONT_NAME)};
       app.activeDocument.saveToOE("png");
     } else {
       app.echoToOE("NOTEXTLAYER");
