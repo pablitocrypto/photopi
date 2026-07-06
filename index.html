@@ -2,37 +2,56 @@
 <meta charset="utf-8">
 <title>PSD Editor</title>
 <style>
-  body{font-family:sans-serif;margin:0}
-  /* стартовый экран — по центру */
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
   #start{
     display:flex;flex-direction:column;align-items:center;justify-content:center;
-    min-height:100vh;
+    min-height:100vh;gap:40px;
   }
   #pick{
-    font-size:32px;padding:24px 48px;
-    background:#1a1a1a;color:#D4A017;border:2px solid #D4A017;border-radius:14px;cursor:pointer;
+    font-size:28px;font-weight:600;padding:22px 46px;
+    background:#1a1a1a;color:#D4A017;border:1.5px solid #D4A017;border-radius:18px;
+    cursor:pointer;letter-spacing:.2px;
+    box-shadow:0 1px 3px rgba(0,0,0,.15);
+    transition:background .15s ease;
   }
-  #pick:hover{background:#2a2a2a}
+  #pick:hover{background:#262626}
   #psd{display:none}
-  #fontrow{margin-top:22px;font-size:18px}
+
+  #secondary{display:flex;flex-direction:column;align-items:center;gap:14px}
+
+  #fontrow{display:flex;align-items:center;gap:10px;font-size:14px;color:#8a8a8e}
   #font{
-    font-size:18px;padding:8px 14px;margin-left:10px;
-    background:#1a1a1a;color:#D4A017;border:2px solid #D4A017;border-radius:8px;cursor:pointer;
+    font-size:14px;color:#6e6e73;background:transparent;
+    border:none;border-bottom:1px solid #d2d2d7;
+    padding:2px 4px;cursor:pointer;outline:none;
   }
-  #bar{margin-top:16px;font-size:18px}
-  #status{margin-left:12px}
+  #font:hover,#font:focus{color:#1d1d1f;border-bottom-color:#1d1d1f}
+
+  #bar{display:flex;align-items:center;gap:6px;font-size:13px;color:#8a8a8e}
+  #bar input[type=checkbox]{width:14px;height:14px;accent-color:#1d1d1f;cursor:pointer}
+  #status{margin-left:8px;color:#8a8a8e;font-size:13px}
+
   #pea{width:100vw;height:100vh;display:none}
 </style>
 
 <div id="start">
   <label id="pick" for="psd">📂 Выбрать PSD-шаблон</label>
   <input type="file" id="psd" accept=".psd">
-  <div id="fontrow">
-    🖋 Шрифт: <select id="font"><option>загружаю список...</option></select>
-  </div>
-  <div id="bar">
-    <label><input type="checkbox" id="autoclose"> закрывать вкладку после сохранения</label>
-    <span id="status"></span>
+  <div id="secondary">
+    <div id="fontrow">
+      <span>Шрифт</span>
+      <select id="font"><option>загружаю список...</option></select>
+    </div>
+    <div id="bar">
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="autoclose"> закрывать вкладку после сохранения
+      </label>
+      <span id="status"></span>
+    </div>
   </div>
 </div>
 <div id="pea"></div>
@@ -40,16 +59,14 @@
 <script src="https://cdn.jsdelivr.net/npm/photopea@1.0.2/dist/photopea.min.js"></script>
 <script>
 const FONTS_API = "https://api.github.com/repos/pablitocrypto/photopi/contents/fonts";
-const PSD_URL   = "";   // пусто = PSD выбираешь вручную
+const PSD_URL   = "";
 const CARD_TEXT = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
 const log = m => document.getElementById('status').textContent = " " + m;
 
-/* галочка автозакрытия — запоминается */
 const cb = document.getElementById('autoclose');
 cb.checked = localStorage.getItem('autoclose') === '1';
 cb.addEventListener('change', () => localStorage.setItem('autoclose', cb.checked ? '1' : '0'));
 
-/* список шрифтов из папки /fonts — запоминается последний выбор */
 const sel = document.getElementById('font');
 (async () => {
   try{
@@ -71,8 +88,8 @@ const sel = document.getElementById('font');
 sel.addEventListener('change', () => localStorage.setItem('font', sel.value));
 
 async function run(psdBuf){
-  const fontFile = sel.value;                              // напр. ElowenPp-Regular.otf
-  const fontName = fontFile.replace(/\.(otf|ttf)$/i,'');   // внутр. имя = имя файла без расширения
+  const fontFile = sel.value;
+  const fontName = fontFile.replace(/\.(otf|ttf)$/i,'');
   const fontUrl  = "/fonts/" + encodeURIComponent(fontFile);
 
   document.getElementById('start').style.display = 'none';
