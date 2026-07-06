@@ -21,7 +21,7 @@
   #pick:hover{background:#262626}
   #psd{display:none}
 
-  #secondary{display:flex;flex-direction:column;align-items:center;gap:14px}
+  #secondary{display:flex;flex-direction:column;align-items:center;gap:16px;width:340px}
 
   #fontrow{display:flex;align-items:center;gap:10px;font-size:14px;color:#8a8a8e}
   #font{
@@ -30,6 +30,17 @@
     padding:2px 4px;cursor:pointer;outline:none;
   }
   #font:hover,#font:focus{color:#1d1d1f;border-bottom-color:#1d1d1f}
+
+  #textblock{width:100%;display:flex;flex-direction:column;gap:6px}
+  #textblock label{font-size:13px;color:#8a8a8e;text-align:center}
+  #cardtext{
+    width:100%;box-sizing:border-box;
+    font-size:14px;color:#1d1d1f;font-family:inherit;
+    border:1px solid #d2d2d7;border-radius:10px;
+    padding:10px 12px;resize:vertical;min-height:80px;
+    outline:none;text-align:center;
+  }
+  #cardtext:focus{border-color:#1d1d1f}
 
   #bar{display:flex;align-items:center;gap:6px;font-size:13px;color:#8a8a8e}
   #bar input[type=checkbox]{width:14px;height:14px;accent-color:#1d1d1f;cursor:pointer}
@@ -46,6 +57,10 @@
       <span>Шрифт</span>
       <select id="font"><option>загружаю список...</option></select>
     </div>
+    <div id="textblock">
+      <label for="cardtext">Текст на карточке</label>
+      <textarea id="cardtext" rows="4"></textarea>
+    </div>
     <div id="bar">
       <label style="display:flex;align-items:center;gap:6px">
         <input type="checkbox" id="autoclose"> закрывать вкладку после сохранения
@@ -60,8 +75,11 @@
 <script>
 const FONTS_API = "https://api.github.com/repos/pablitocrypto/photopi/contents/fonts";
 const PSD_URL   = "";
-const CARD_TEXT = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
 const log = m => document.getElementById('status').textContent = " " + m;
+
+/* текст берём из ?text=, показываем в поле — можно поправить перед генерацией */
+const textarea = document.getElementById('cardtext');
+textarea.value = new URLSearchParams(location.search).get('text') || "My Text";
 
 const cb = document.getElementById('autoclose');
 cb.checked = localStorage.getItem('autoclose') === '1';
@@ -91,6 +109,7 @@ async function run(psdBuf){
   const fontFile = sel.value;
   const fontName = fontFile.replace(/\.(otf|ttf)$/i,'');
   const fontUrl  = "/fonts/" + encodeURIComponent(fontFile);
+  const cardText = textarea.value.replace(/\n/g, "\r");   // берём то, что реально в поле (с правками)
 
   document.getElementById('start').style.display = 'none';
   document.getElementById('pea').style.display = 'block';
@@ -110,7 +129,7 @@ async function run(psdBuf){
     }
     var L = findText(app.activeDocument.layers);
     if (L){
-      L.textItem.contents = ${JSON.stringify(CARD_TEXT)};
+      L.textItem.contents = ${JSON.stringify(cardText)};
       L.textItem.font = ${JSON.stringify(fontName)};
       app.activeDocument.saveToOE("png");
     } else {
