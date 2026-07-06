@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
+<title>PSD Editor</title>
 <style>
   body{font-family:sans-serif;margin:0}
-  /* стартовый экран — крупная кнопка по центру */
+  /* стартовый экран — по центру */
   #start{
     display:flex;flex-direction:column;align-items:center;justify-content:center;
     min-height:100vh;
@@ -13,36 +14,74 @@
   }
   #pick:hover{background:#2a2a2a}
   #psd{display:none}
-  #bar{margin-top:20px;font-size:18px}
+  #fontrow{margin-top:22px;font-size:18px}
+  #font{
+    font-size:18px;padding:8px 14px;margin-left:10px;
+    background:#1a1a1a;color:#D4A017;border:2px solid #D4A017;border-radius:8px;cursor:pointer;
+  }
+  #bar{margin-top:16px;font-size:18px}
   #status{margin-left:12px}
-  #pea{width:100vw;height:100vh;display:none}   /* Photopea во весь экран, появится после выбора */
+  #pea{width:100vw;height:100vh;display:none}
 </style>
+
 <div id="start">
   <label id="pick" for="psd">📂 Выбрать PSD-шаблон</label>
   <input type="file" id="psd" accept=".psd">
+  <div id="fontrow">
+    🖋 Шрифт: <select id="font"><option>загружаю список...</option></select>
+  </div>
   <div id="bar">
     <label><input type="checkbox" id="autoclose"> закрывать вкладку после сохранения</label>
     <span id="status"></span>
   </div>
 </div>
 <div id="pea"></div>
+
 <script src="https://cdn.jsdelivr.net/npm/photopea@1.0.2/dist/photopea.min.js"></script>
 <script>
-const FONT_URL  = "https://cdn.jsdelivr.net/gh/pablitocrypto/fonts@main/ElowenPp2-Regular.otf";
-const FONT_NAME = "ElowenPp2-Regular";   // внутреннее имя шрифта для слоя
-const PSD_URL   = "";   // пусто = PSD выбираешь вручную; впишешь ссылку = грузится сам
+const FONTS_API = "https://api.github.com/repos/pablitocrypto/photopi/contents/fonts";
+const PSD_URL   = "";   // пусто = PSD выбираешь вручную
 const CARD_TEXT = (new URLSearchParams(location.search).get('text') || "My Text").replace(/\n/g, "\r");
 const log = m => document.getElementById('status').textContent = " " + m;
+
+/* галочка автозакрытия — запоминается */
 const cb = document.getElementById('autoclose');
 cb.checked = localStorage.getItem('autoclose') === '1';
 cb.addEventListener('change', () => localStorage.setItem('autoclose', cb.checked ? '1' : '0'));
+
+/* список шрифтов из папки /fonts — запоминается последний выбор */
+const sel = document.getElementById('font');
+(async () => {
+  try{
+    const files = await (await fetch(FONTS_API)).json();
+    const fonts = files.filter(f => /\.(otf|ttf)$/i.test(f.name));
+    sel.innerHTML = "";
+    fonts.forEach(f => {
+      const o = document.createElement('option');
+      o.value = f.name;
+      o.textContent = f.name.replace(/\.(otf|ttf)$/i,'');
+      sel.appendChild(o);
+    });
+    const saved = localStorage.getItem('font');
+    if (saved && [...sel.options].some(o => o.value === saved)) sel.value = saved;
+  }catch(e){
+    sel.innerHTML = "<option value=''>не удалось получить список</option>";
+  }
+})();
+sel.addEventListener('change', () => localStorage.setItem('font', sel.value));
+
 async function run(psdBuf){
-  // прячем стартовый экран (кнопку), показываем Photopea на весь экран
+  const fontFile = sel.value;                              // напр. ElowenPp-Regular.otf
+  const fontName = fontFile.replace(/\.(otf|ttf)$/i,'');   // внутр. имя = имя файла без расширения
+  const fontUrl  = "/fonts/" + encodeURIComponent(fontFile);
+
   document.getElementById('start').style.display = 'none';
   document.getElementById('pea').style.display = 'block';
+
   const pea = await Photopea.createEmbed(document.getElementById('pea'));
   await pea.loadAsset(psdBuf);
-  await pea.loadAsset(await (await fetch(FONT_URL)).arrayBuffer());
+  await pea.loadAsset(await (await fetch(fontUrl)).arrayBuffer());
+
   const script = `
     function findText(ls){
       for (var i=0;i<ls.length;i++){
@@ -55,7 +94,7 @@ async function run(psdBuf){
     var L = findText(app.activeDocument.layers);
     if (L){
       L.textItem.contents = ${JSON.stringify(CARD_TEXT)};
-      L.textItem.font = ${JSON.stringify(FONT_NAME)};
+      L.textItem.font = ${JSON.stringify(fontName)};
       app.activeDocument.saveToOE("png");
     } else {
       app.echoToOE("NOTEXTLAYER");
