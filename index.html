@@ -71,8 +71,36 @@
 </div>
 <div id="pea"></div>
 
+<script>
+/* режим копирования: ?t=... показывает кнопку и текст, PSD-редактор не грузится */
+(function(){
+  var t = new URLSearchParams(location.search).get('t');
+  if (!t) return;
+  document.title = 'Копировать';
+  document.body.innerHTML =
+    '<div style="min-height:100vh;background:#111;color:#eee;padding:28px;box-sizing:border-box">' +
+      '<button id="cbtn" style="background:#2b6;color:#000;border:0;border-radius:12px;padding:16px 28px;font-size:17px;font-weight:600;cursor:pointer;font-family:inherit">Копировать всё</button>' +
+      '<span id="cok" style="margin-left:14px;color:#2b6;font-size:15px"></span>' +
+      '<pre id="ctxt" style="white-space:pre-wrap;background:#1a1a1a;padding:18px;border-radius:12px;margin-top:22px;font:13px/1.6 ui-monospace,SFMono-Regular,monospace;color:#ddd"></pre>' +
+    '</div>';
+  document.getElementById('ctxt').textContent = t;
+  document.getElementById('cbtn').onclick = async function(){
+    var s = document.getElementById('ctxt').textContent;
+    try { await navigator.clipboard.writeText(s); }
+    catch(e){
+      var ta = document.createElement('textarea');
+      ta.value = s; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+    }
+    document.getElementById('cok').textContent = 'скопировано';
+    setTimeout(function(){ window.close(); }, 600);
+  };
+  window.__COPYMODE__ = true;
+})();
+</script>
 <script src="https://cdn.jsdelivr.net/npm/photopea@1.0.2/dist/photopea.min.js"></script>
 <script>
+if (!window.__COPYMODE__) {
 const FONTS_API = "https://api.github.com/repos/pablitocrypto/photopi/contents/fonts";
 const PSD_URL   = "";
 const log = m => document.getElementById('status').textContent = " " + m;
@@ -152,5 +180,6 @@ if (PSD_URL){
   document.getElementById('psd').addEventListener('change', async e => {
     if (e.target.files[0]) run(await e.target.files[0].arrayBuffer());
   });
+}
 }
 </script>
