@@ -76,9 +76,9 @@
 const FONTS_API = "https://api.github.com/repos/pablitocrypto/photopi/contents/fonts";
 const PSD_URL   = "";
 
-/* Размытие краёв букв в пикселях. 0 = выключено.
-   Больше = мягче. Для фото 2048 px обычно 0.6-1.0 */
-const BLUR = 0;
+/* МЯГКОСТЬ КРАЁВ БУКВ. 0 = выключено (как раньше).
+   0.5 = чуть-чуть, 0.7 = заметно, 1.0 = сильно. */
+const SOFT = 0.6;
 
 const log = m => document.getElementById('status').textContent = " " + m;
 
@@ -110,6 +110,90 @@ const sel = document.getElementById('font');
 })();
 sel.addEventListener('change', () => localStorage.setItem('font', sel.value));
 
+/* ---------- мягкие края ----------
+   A = картинка с текстом, B = та же картинка без текста.
+   Разница (B - A) = только "чернила" со всеми эффектами шаблона.
+   Чуть размываем только эту разницу и накладываем обратно на B.
+   Фон не трогается, толщина букв визуально не растёт. */
+async function decodePng(buf){
+  const bmp = await createImageBitmap(new Blob([buf], {type:"image/png"}));
+  const c = document.createElement('canvas');
+  c.width = bmp.width; c.height = bmp.height;
+  const ctx = c.getContext('2d');
+  ctx.drawImage(bmp, 0, 0);
+  return { c, ctx, img: ctx.getImageData(0, 0, c.width, c.height) };
+}
+
+function gaussKernel(sigma){
+  const r = Math.max(1, Math.ceil(sigma * 3));
+  const k = []; let s = 0;
+  for (let i = -r; i <= r; i++){ const v = Math.exp(-(i*i)/(2*sigma*sigma)); k.push(v); s += v; }
+  return k.map(v => v / s);
+}
+
+function softenInk(A, B, w, h, sigma){
+  const out = new Uint8ClampedArray(B);
+  const k = gaussKernel(sigma), r = (k.length - 1) / 2;
+
+  /* область, где есть текст (чтобы считать быстро) */
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++){
+    for (let x = 0; x < w; x++){
+      const i = (y*w + x) * 4;
+      if (A[i] !== B[i] || A[i+1] !== B[i+1] || A[i+2] !== B[i+2]){
+        if (x < x0) x0 = x; if (x > x1) x1 = x;
+        if (y < y0) y0 = y; if (y > y1) y1 = y;
+      }
+    }
+  }
+  if (x1 < 0) return new Uint8ClampedArray(A);   // текста не нашли — отдаём как есть
+  x0 = Math.max(0, x0 - 2*r); y0 = Math.max(0, y0 - 2*r);
+  x1 = Math.min(w - 1, x1 + 2*r); y1 = Math.min(h - 1, y1 + 2*r);
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+
+  const d = new Float32Array(bw*bh), t = new Float32Array(bw*bh);
+  for (let ch = 0; ch < 3; ch++){
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++){
+      const i = ((y+y0)*w + (x+x0)) * 4 + ch;
+      d[y*bw + x] = B[i] - A[i];
+    }
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++){
+      let s = 0;
+      for (let j = -r; j <= r; j++){
+        let xx = x + j; if (xx < 0) xx = 0; else if (xx >= bw) xx = bw - 1;
+        s += d[y*bw + xx] * k[j + r];
+      }
+      t[y*bw + x] = s;
+    }
+    for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++){
+      let s = 0;
+      for (let j = -r; j <= r; j++){
+        let yy = y + j; if (yy < 0) yy = 0; else if (yy >= bh) yy = bh - 1;
+        s += t[yy*bw + x] * k[j + r];
+      }
+      const i = ((y+y0)*w + (x+x0)) * 4 + ch;
+      out[i] = B[i] - s;
+    }
+  }
+  return out;
+}
+
+async function makeFinal(withText, noText){
+  if (!(SOFT > 0) || !noText) return new Blob([withText], {type:"image/png"});
+  try{
+    const a = await decodePng(withText);
+    const b = await decodePng(noText);
+    if (a.c.width !== b.c.width || a.c.height !== b.c.height) throw 0;
+    const px = softenInk(a.img.data, b.img.data, a.c.width, a.c.height, SOFT);
+    a.img.data.set(px);
+    a.ctx.putImageData(a.img, 0, 0);
+    return await new Promise(res => a.c.toBlob(res, "image/png"));
+  }catch(e){
+    console.warn("Мягкие края не получились, сохраняю как есть", e);
+    return new Blob([withText], {type:"image/png"});
+  }
+}
+
 async function run(psdBuf){
   const fontFile = sel.value;
   const fontName = fontFile.replace(/\.(otf|ttf)$/i,'');
@@ -137,37 +221,26 @@ async function run(psdBuf){
     if (L){
       L.textItem.contents = ${JSON.stringify(cardText)};
       L.textItem.font = ${JSON.stringify(fontName)};
-
-      /* мягкие края: превращаем текст в картинку и чуть размываем.
-         Стили слоя, режим, шум и градиент сверху сохраняются.
-         Если что-то не сработает - просто сохранится без размытия. */
-      var blur = ${Number(BLUR) || 0};
-      if (blur > 0){
-        try{
-          doc.activeLayer = L;
-          L.rasterize(RasterizeType.TEXTCONTENTS);
-          L.applyGaussianBlur(blur);
-          app.echoToOE("BLUR_OK");
-        }catch(e){
-          app.echoToOE("BLUR_FAIL");
-        }
+      doc.saveToOE("png");                 /* 1-й снимок: с текстом */
+      if (${SOFT > 0 ? "true" : "false"}){
+        L.visible = false;
+        doc.saveToOE("png");               /* 2-й снимок: без текста */
+        L.visible = true;
       }
-
-      doc.saveToOE("png");
     } else {
       app.echoToOE("NOTEXTLAYER");
     }
   `;
   const out = await pea.runScript(script);
   if (out.find(x => x === "NOTEXTLAYER")) return;
-  if (out.find(x => x === "BLUR_FAIL")) console.warn("Размытие не применилось, сохранено без него");
-  const png = out.find(x => x instanceof ArrayBuffer);
-  if (png){
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([png], {type:"image/png"}));
-    a.download = "card.png"; a.click();
-    if (cb.checked) setTimeout(() => window.close(), 2000);
-  }
+  const pngs = out.filter(x => x instanceof ArrayBuffer);
+  if (!pngs.length) return;
+
+  const blob = await makeFinal(pngs[0], pngs[1]);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = "card.png"; a.click();
+  if (cb.checked) setTimeout(() => window.close(), 2000);
 }
 if (PSD_URL){
   fetch(PSD_URL).then(r => r.arrayBuffer()).then(run);
