@@ -135,6 +135,30 @@ function randomizeLetters(text){
   return out;
 }
 
+/* проверка: есть ли в шрифте символ U+E000 (значит это новый шрифт с вариантами) */
+function fontHasVariants(buf){
+  try{
+    const d = new DataView(buf), n = d.getUint16(4);
+    let cmap = -1;
+    for (let i = 0; i < n; i++){
+      const r = 12 + i*16;
+      if (String.fromCharCode(d.getUint8(r),d.getUint8(r+1),d.getUint8(r+2),d.getUint8(r+3)) === "cmap") cmap = d.getUint32(r+8);
+    }
+    if (cmap < 0) return false;
+    const cnt = d.getUint16(cmap+2);
+    for (let i = 0; i < cnt; i++){
+      const r = cmap + 4 + i*8, pid = d.getUint16(r), eid = d.getUint16(r+2), off = cmap + d.getUint32(r+4);
+      if (!((pid === 3 && eid === 1) || pid === 0) || d.getUint16(off) !== 4) continue;
+      const seg = d.getUint16(off+6) / 2;
+      for (let k = 0; k < seg; k++){
+        const end = d.getUint16(off+14+k*2), start = d.getUint16(off+16+seg*2+k*2);
+        if (start <= 0xE000 && 0xE000 <= end) return true;
+      }
+    }
+  }catch(e){}
+  return false;
+}
+
 /* ---------- мягкие края ----------
    A = картинка с текстом, B = та же картинка без текста.
    Разница (B - A) = только "чернила" со всеми эффектами шаблона.
@@ -224,14 +248,17 @@ async function run(psdBuf){
   const fontName = fontFile.replace(/\.(otf|ttf)$/i,'');
   const fontUrl  = "/fonts/" + encodeURIComponent(fontFile);
   let cardText = textarea.value.replace(/\n/g, "\r");
-  if (RANDOM_FONT.test(fontFile)) cardText = randomizeLetters(cardText);   // берём то, что реально в поле (с правками)
+   // берём то, что реально в поле (с правками)
 
   document.getElementById('start').style.display = 'none';
   document.getElementById('pea').style.display = 'block';
 
   const pea = await Photopea.createEmbed(document.getElementById('pea'));
   await pea.loadAsset(psdBuf);
-  await pea.loadAsset(await (await fetch(fontUrl)).arrayBuffer());
+  const fontBuf = await (await fetch(fontUrl + "?v=" + Date.now(), {cache:"no-store"})).arrayBuffer();
+  /* варианты букв включаем, только если в шрифте реально есть новые "номера" */
+  if (RANDOM_FONT.test(fontFile) && fontHasVariants(fontBuf)) cardText = randomizeLetters(cardText);
+  await pea.loadAsset(fontBuf);
 
   const script = `
     function findText(ls){
