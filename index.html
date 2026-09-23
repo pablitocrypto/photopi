@@ -75,6 +75,11 @@
 <script>
 const FONTS_API = "https://api.github.com/repos/pablitocrypto/photopi/contents/fonts";
 const PSD_URL   = "";
+
+/* Размытие краёв букв в пикселях. 0 = выключено.
+   Больше = мягче. Для фото 2048 px обычно 0.6-1.0 */
+const BLUR = 0.8;
+
 const log = m => document.getElementById('status').textContent = " " + m;
 
 /* текст берём из ?text=, показываем в поле — можно поправить перед генерацией */
@@ -127,17 +132,35 @@ async function run(psdBuf){
       }
       return null;
     }
-    var L = findText(app.activeDocument.layers);
+    var doc = app.activeDocument;
+    var L = findText(doc.layers);
     if (L){
       L.textItem.contents = ${JSON.stringify(cardText)};
       L.textItem.font = ${JSON.stringify(fontName)};
-      app.activeDocument.saveToOE("png");
+
+      /* мягкие края: превращаем текст в картинку и чуть размываем.
+         Стили слоя, режим, шум и градиент сверху сохраняются.
+         Если что-то не сработает - просто сохранится без размытия. */
+      var blur = ${Number(BLUR) || 0};
+      if (blur > 0){
+        try{
+          doc.activeLayer = L;
+          L.rasterize(RasterizeType.TEXTCONTENTS);
+          L.applyGaussianBlur(blur);
+          app.echoToOE("BLUR_OK");
+        }catch(e){
+          app.echoToOE("BLUR_FAIL");
+        }
+      }
+
+      doc.saveToOE("png");
     } else {
       app.echoToOE("NOTEXTLAYER");
     }
   `;
   const out = await pea.runScript(script);
   if (out.find(x => x === "NOTEXTLAYER")) return;
+  if (out.find(x => x === "BLUR_FAIL")) console.warn("Размытие не применилось, сохранено без него");
   const png = out.find(x => x instanceof ArrayBuffer);
   if (png){
     const a = document.createElement('a');
