@@ -88,6 +88,11 @@ const CENTER_V = true;
    Длинный текст (как в шаблоне и длиннее) всегда стоит по центру. */
 const UP = 0.7;
 
+/* СЛУЧАЙНЫЙ СДВИГ СТРОК ВЛЕВО-ВПРАВО. 0 = выключено.
+   Число = сколько пробелов максимум добавить перед строкой (1 пробел = небольшой сдвиг).
+   2 = чуть-чуть, 3 = заметно. */
+const SHIFT_X = 2;
+
 const log = m => document.getElementById('status').textContent = " " + m;
 
 /* текст берём из ?text=, показываем в поле — можно поправить перед генерацией */
@@ -141,6 +146,16 @@ function randomizeLetters(text){
     i++;
   }
   return out;
+}
+
+/* каждой строке случайно добавляем 0..SHIFT_X пробелов в начало -
+   строки чуть гуляют влево-вправо, как у живого человека */
+function jitterLines(text){
+  if (!(SHIFT_X > 0)) return text;
+  return text.split("\r").map(line => {
+    if (!line.trim()) return line;
+    return " ".repeat(Math.floor(Math.random() * (SHIFT_X + 1))) + line;
+  }).join("\r");
 }
 
 /* проверка: есть ли в шрифте символ U+E000 (значит это новый шрифт с вариантами) */
@@ -266,6 +281,7 @@ async function run(psdBuf){
   const fontBuf = await (await fetch(fontUrl + "?v=" + Date.now(), {cache:"no-store"})).arrayBuffer();
   /* варианты букв включаем, только если в шрифте реально есть новые "номера" */
   if (RANDOM_FONT.test(fontFile) && fontHasVariants(fontBuf)) cardText = randomizeLetters(cardText);
+  cardText = jitterLines(cardText);
   await pea.loadAsset(fontBuf);
 
   const script = `
@@ -281,7 +297,7 @@ async function run(psdBuf){
     var L = findText(doc.layers);
     if (L){
       /* запоминаем, где был центр текста в шаблоне */
-      var b0 = L.bounds, cy0 = (+b0[1] + +b0[3]) / 2;
+      var b0 = L.bounds, cy0 = (+b0[1] + +b0[3]) / 2, cx0 = (+b0[0] + +b0[2]) / 2;
       L.textItem.contents = ${JSON.stringify(cardText)};
       L.textItem.font = ${JSON.stringify(fontName)};
       /* сдвигаем новый текст так, чтобы его центр по высоте остался там же
@@ -292,7 +308,9 @@ async function run(psdBuf){
           var dy = cy0 - cy1;                       /* ровно по центру */
           var h0 = +b0[3] - +b0[1], h1 = +b1[3] - +b1[1];
           if (h1 < h0) dy -= ${Number(UP) || 0} * (h0 - h1) / 2;   /* короткий текст - чуть выше */
-          if (Math.abs(dy) > 0.5) L.translate(0, dy);
+          /* по горизонтали возвращаем блок в центр (сдвигаются только строки относительно друг друга) */
+          var dx = ${SHIFT_X > 0 ? "true" : "false"} ? cx0 - (+b1[0] + +b1[2]) / 2 : 0;
+          if (Math.abs(dy) > 0.5 || Math.abs(dx) > 0.5) L.translate(dx, dy);
         }catch(e){}
       }
       doc.saveToOE("png");                 /* 1-й снимок: с текстом */
