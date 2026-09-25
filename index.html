@@ -116,7 +116,7 @@ document.getElementById('psback').addEventListener('click', e => {
   const folder = new URLSearchParams(location.search).get('folder') || '';
   location.href = 'pauacard:?folder=' + encodeURIComponent(folder) +
                   '&text=' + encodeURIComponent(textarea.value.trim());
-  if (document.getElementById('autoclose').checked) setTimeout(() => window.close(), 3000);
+  setTimeout(() => window.close(), 1500);   // вкладка закрывается всегда
 });
 
 const cb = document.getElementById('autoclose');
