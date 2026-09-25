@@ -19,6 +19,12 @@
     transition:background .15s ease;
   }
   #pick:hover{background:#262626}
+  #btns{display:flex;flex-direction:column;align-items:center;gap:14px}
+  #psback{
+    font-size:15px;color:#6e6e73;text-decoration:none;
+    padding:8px 18px;border:1px solid #d2d2d7;border-radius:12px;
+  }
+  #psback:hover{color:#1d1d1f;border-color:#1d1d1f}
   #psd{display:none}
 
   #secondary{display:flex;flex-direction:column;align-items:center;gap:16px;width:340px}
@@ -50,7 +56,10 @@
 </style>
 
 <div id="start">
-  <label id="pick" for="psd">📂 Выбрать PSD-шаблон</label>
+  <div id="btns">
+    <label id="pick" for="psd">📂 Выбрать PSD-шаблон</label>
+    <a id="psback" href="#">🖥 Резерв: открыть в Photoshop</a>
+  </div>
   <input type="file" id="psd" accept=".psd">
   <div id="secondary">
     <div id="fontrow">
@@ -70,6 +79,8 @@
   </div>
 </div>
 <div id="pea"></div>
+
+
 
 <script src="https://cdn.jsdelivr.net/npm/photopea@1.0.2/dist/photopea.min.js"></script>
 <script>
@@ -91,13 +102,22 @@ const UP = 0.7;
 /* СЛУЧАЙНЫЙ СДВИГ СТРОК ВЛЕВО-ВПРАВО. 0 = выключено.
    Число = сколько пробелов максимум добавить перед строкой (1 пробел = небольшой сдвиг).
    2 = чуть-чуть, 3 = заметно. */
-const SHIFT_X = 1;
+const SHIFT_X = 2;
 
 const log = m => document.getElementById('status').textContent = " " + m;
 
 /* текст берём из ?text=, показываем в поле — можно поправить перед генерацией */
 const textarea = document.getElementById('cardtext');
 textarea.value = new URLSearchParams(location.search).get('text') || "My Text";
+
+/* РЕЗЕРВ: передать текст в Photoshop (скрипт C:\PauaCard\Paua_Card.jsx через pauacard:) */
+document.getElementById('psback').addEventListener('click', e => {
+  e.preventDefault();
+  const folder = new URLSearchParams(location.search).get('folder') || '';
+  location.href = 'pauacard:?folder=' + encodeURIComponent(folder) +
+                  '&text=' + encodeURIComponent(textarea.value.trim());
+  if (document.getElementById('autoclose').checked) setTimeout(() => window.close(), 3000);
+});
 
 const cb = document.getElementById('autoclose');
 cb.checked = localStorage.getItem('autoclose') === '1';
